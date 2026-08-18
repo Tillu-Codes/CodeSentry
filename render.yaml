@@ -1,0 +1,38 @@
+# Render blueprint for the CodeSentry backend.
+# Import in the Render dashboard: New -> Blueprint -> codesentry/backend.
+# Fill in the `sync: false` values in the Render dashboard after deploy.
+services:
+  - type: web
+    name: codesentry-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      # LLM layer (optional: leave LLM_PROVIDER unset for rules-only scans)
+      - key: LLM_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.0-flash
+      - key: OLLAMA_URL
+        value: http://localhost:11434/v1
+      - key: OLLAMA_MODEL
+        value: deepseek-coder
+
+      # Supabase (optional: unset disables auth + persistence)
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+
+      # Comma-separated allowed frontend origins, e.g. https://codesentry.vercel.app
+      - key: CORS_ORIGINS
+        value: ""

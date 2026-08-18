@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+bandit
+detect-secrets
+python-dotenv
+PyGithub
+python-multipart
+pytest
+httpx
+supabase
+PyJWT
