@@ -20,8 +20,13 @@ class Finding(BaseModel):
 
 
 class ScanRequest(BaseModel):
-    code: str = Field(..., description="Python source code to analyze")
-    filename: str = Field(default="main.py", description="Name to attribute the code to")
+    code: str = Field(..., max_length=500_000, description="Python source code to analyze (max 500KB)")
+    filename: str = Field(
+        default="main.py",
+        max_length=200,
+        pattern=r"^[\w.\-_/ ]+$",
+        description="Name to attribute the code to",
+    )
     enrich: bool = Field(
         default=True,
         description="Use the LLM to rewrite explanations and suggest fixes for rule findings",
@@ -41,8 +46,8 @@ class ScanResponse(BaseModel):
 
 
 class RepoScanRequest(BaseModel):
-    github_url: Optional[str] = None
-    branch: Optional[str] = None
+    github_url: Optional[str] = Field(default=None, max_length=500, description="GitHub repo URL")
+    branch: Optional[str] = Field(default=None, max_length=100, pattern=r"^[\w.\-_/]*$")
     enrich: bool = True
     llm_missed_issues: bool = True
 

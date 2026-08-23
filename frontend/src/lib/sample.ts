@@ -1,3 +1,5 @@
+// SAMPLE CODE FOR DEMO - contains INTENTIONAL vulnerabilities for the scanner to find.
+// The API_KEY below is a FAKE placeholder (Stripe test key format) and is never used.
 export const sampleCode = `import sqlite3
 
 conn = sqlite3.connect("app.db")

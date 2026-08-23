@@ -1,0 +1,42 @@
+# Environment secrets - never commit
+.env
+backend/.env
+frontend/.env
+*.env.local
+*.env.production
+
+# Logs
+logs/
+*.log
+backend_uvicorn*.log
+frontend_vite*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+env/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Vercel
+.vercel/

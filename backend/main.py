@@ -2,14 +2,58 @@ import asyncio
 import json
 import os
 import queue
+import time
+from collections import defaultdict, deque
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 load_dotenv()
+
+# --- Security: Rate limiting (in-memory sliding window) ---
+_RATE_LIMIT = int(os.getenv("RATE_LIMIT_PER_MIN", "60"))
+_RATE_WINDOW = 60  # seconds
+_rate_store: dict[str, deque] = defaultdict(deque)
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Only rate-limit mutating scan endpoints
+        if request.url.path.startswith("/scan"):
+            ip = request.client.host if request.client else "unknown"
+            now = time.time()
+            q = _rate_store[ip]
+            # prune old
+            while q and q[0] < now - _RATE_WINDOW:
+                q.popleft()
+            if len(q) >= _RATE_LIMIT:
+                from fastapi.responses import JSONResponse
+
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "Too many requests. Please slow down."},
+                    headers={"Retry-After": str(_RATE_WINDOW)},
+                )
+            q.append(now)
+        return await call_next(request)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "0"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        # HSTS when behind HTTPS (Render/Vercel terminates TLS)
+        if request.url.scheme == "https":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
 
 from auth import is_auth_enabled, optional_user, require_user
 from models import (
@@ -51,6 +95,8 @@ def _cors_origins() -> list[str]:
 
 _cors_allow_credentials = _cors_origins() != ["*"]
 
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
@@ -139,7 +185,15 @@ async def scan_repo_zip(
     background_tasks: BackgroundTasks = BackgroundTasks(),
     user_id: str | None = Depends(optional_user),
 ):
+    # Enforce max upload size (20 MB) before reading fully
     content = await file.read()
+    if len(content) > 20_000_000:
+        raise HTTPException(413, "Archive too large (max 20 MB)")
+    if len(content) == 0:
+        raise HTTPException(422, "Empty archive")
+    # Validate zip magic bytes
+    if not content.startswith(b"PK"):
+        raise HTTPException(422, "Invalid zip file")
     files = extract_zip_python_files(content)
     if not files:
         raise HTTPException(422, "No .py files found in the uploaded archive")
